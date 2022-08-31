@@ -3,8 +3,17 @@
 import subprocess as sp
 
 
+def run_baseline(id):
+    sp.run(['./baseline', 'data_' + str(id) + '.txt', 'out_' + str(id) + '_baseline.txt'])
+
+
 def run_scheduler(id):
     sp.run(['./scheduler', 'data_' + str(id) + '.txt', 'out_' + str(id) + '.txt'])
+
+
+def compute_baseline_stats(id):
+    with open('baseline_stats_' + str(id) + '.txt', 'w') as outfile:
+        sp.run(['./compute_stats', 'data_' + str(id) + '.txt', 'out_' + str(id) + '_baseline.txt'], stdout=outfile)
 
 
 def compute_scheduler_stats(id):
@@ -49,7 +58,9 @@ def print_grades(baseline_stats, scheduler_stats):
 
 def run(ids):
     for id in ids:
+        run_baseline(id)
         run_scheduler(id)
+        compute_baseline_stats(id)
         compute_scheduler_stats(id)
         baseline_stats, scheduler_stats = read_stats(id)
         print_stats(id)
@@ -58,6 +69,5 @@ def run(ids):
 
 
 if __name__ == '__main__':
-    #sp.run(['g++', 'scheduler.cpp', '-o', 'scheduler'])
     ids = [1111, 2222, 3333]
     run(ids)
