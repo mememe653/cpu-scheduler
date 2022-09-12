@@ -1,3 +1,6 @@
+# cpu-scheduler
+Uni assignment for Operating Systems
+
 Arriving customers are placed FCFS into an arrival queue.
 They are partially executed before being moved to either a high-priority queue or low-priority queue. This ensures low response time.
 Customers in the high-priority and low-priority queues are executed according to SRTF. This ensures low total wait time.
