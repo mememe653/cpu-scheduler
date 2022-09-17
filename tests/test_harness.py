@@ -167,6 +167,9 @@ def perform_random_tests(output_path: str = "/tmp",
 def run_tests(num_random_tests: int = 100,
               min_num_customers: int = 0,
               max_num_customers: int = 99,
+              scheduler_path: str = "scheduler",
+              baseline_path: str = "baseline",
+              compute_stats_path: str = "compute_stats",
               output_file: Union[str, pathlib.Path] = "results.csv"):
     """Performs `num_random_tests` random tests, for random test cases of various
     sizes (specifically all sizes between `min_num_customers` and
@@ -176,6 +179,9 @@ def run_tests(num_random_tests: int = 100,
         num_random_tests: the number of random tests to create.
         min_num_customers: the lower bound for test case size.
         max_num_customers: the upper bound for test case size.
+        scheduler_path: relative path to the `scheduler` executable
+        baseline_path: relative path to the `baseline` executable
+        baseline_path: relative path to the `baseline` executable
         output_file: the file to output.
 
     Returns:
@@ -191,8 +197,11 @@ def run_tests(num_random_tests: int = 100,
         print(f"performing random tests for num_customers = ", end='', flush=True)
         for num_customers in range(min_num_customers, max_num_customers+1):
             print(f"{num_customers}, ", end='', flush=True)
-            results = perform_random_tests(num_customers=num_customers, 
+            results = perform_random_tests(num_customers=num_customers,
                                            num_random_tests=num_random_tests,
+                                           scheduler_path=scheduler_path,
+                                           baseline_path=baseline_path,
+                                           compute_stats_path=compute_stats_path,
                                            log=False)
 
             # consolidate numerical results into a line, separated by comma
