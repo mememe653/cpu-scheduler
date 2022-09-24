@@ -13,7 +13,7 @@
 
 // Program Constants
 // std is a namespace: https://www.cplusplus.com/doc/oldtutorial/namespaces/
-const int TIME_ALLOWANCE = 8;  // allow to use up to this number of time slots at once
+const int TIME_ALLOWANCE = 4;  // allow the arriving event to use up to this number of time slots at once for its initial run
 const int PRINT_LOG = 0; // print detailed execution trace
 const int HIGH_PRIORITY = 0;
 const int LOW_PRIORITY = 1;
@@ -129,19 +129,18 @@ int main(int argc, char* argv[]) {
                 customers[current_id].slots_remaining -= last_run;
                 //current_queue->pop_front();
                 if (customers[current_id].slots_remaining > 0) {
-                    if (customers[current_id].priority == HIGH_PRIORITY) {
-                        high_priority_queue.push_back(current_id);
-                    }
-                    else if (customers[current_id].priority == LOW_PRIORITY) {
-                        low_priority_queue.push_back(current_id);
-                    }
+                     high_priority_queue.push_back(current_id);
                 }
                 current_id = -1;
             }
         }
         if (current_id == -1) {
+            // Pre-empt with arrival events.
+            if (!arrival_queue.empty()) {
+                current_queue = &arrival_queue;
+            }
             // If the current_queue is empty
-            if (current_queue->empty()) {
+            else if (current_queue->empty()) {
                 if (current_queue == &arrival_queue) {
                     current_queue = &high_priority_queue;
                 }
