@@ -7,6 +7,7 @@ import subprocess as sp
 import pathlib
 import pandas as pd
 import argparse
+import csv
 
 
 def create_random_test(seed: int,
@@ -166,6 +167,9 @@ def perform_random_tests(output_path: str = "/tmp",
 def run_tests(num_random_tests: int = 100,
               min_num_customers: int = 0,
               max_num_customers: int = 99,
+              scheduler_path: str = "scheduler",
+              baseline_path: str = "baseline",
+              compute_stats_path: str = "compute_stats",
               output_file: Union[str, pathlib.Path] = "results.csv"):
     """Performs `num_random_tests` random tests, for random test cases of various
     sizes (specifically all sizes between `min_num_customers` and
@@ -175,6 +179,9 @@ def run_tests(num_random_tests: int = 100,
         num_random_tests: the number of random tests to create.
         min_num_customers: the lower bound for test case size.
         max_num_customers: the upper bound for test case size.
+        scheduler_path: relative path to the `scheduler` executable
+        baseline_path: relative path to the `baseline` executable
+        baseline_path: relative path to the `baseline` executable
         output_file: the file to output.
 
     Returns:
@@ -190,8 +197,11 @@ def run_tests(num_random_tests: int = 100,
         print(f"performing random tests for num_customers = ", end='', flush=True)
         for num_customers in range(min_num_customers, max_num_customers+1):
             print(f"{num_customers}, ", end='', flush=True)
-            results = perform_random_tests(num_customers=num_customers, 
+            results = perform_random_tests(num_customers=num_customers,
                                            num_random_tests=num_random_tests,
+                                           scheduler_path=scheduler_path,
+                                           baseline_path=baseline_path,
+                                           compute_stats_path=compute_stats_path,
                                            log=False)
 
             # consolidate numerical results into a line, separated by comma
@@ -203,5 +213,60 @@ def run_tests(num_random_tests: int = 100,
         print()
 
 
+def perform_benchmark(test_output_path: str = "/tmp",
+                      num_random_tests: int = 10000,
+                      num_customers: int = 50,
+                      scheduler_path: str = "scheduler",
+                      compute_stats_path: str = "compute_stats",
+                      csv_filename: str = "results.csv"):
+    """Runs the given scheduler on the given number of random tests, storing
+    all generated statistics in the csv file.
+
+    Args:
+        test_output_path: the directory used for temporarily storing the
+            generated test case, baseline results and scheduler results.
+        num_random_tests: the number of random tests to generate.
+        num_customers: the number of customers present in each test case.
+        scheduler_path: relative path to the `scheduler` executable
+        compute_stats_path: relative path to the `compute_stats` executable
+        csv_filename: the path and filename to the output csv file.
+
+    Returns:
+        None. Creates a csv file named `csv_filename`, aggregating results
+        of `compute_stats` for the `num_random_tests` random tests.
+    """
+    with open(csv_filename, 'w') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        header = "total_wait_0 total_wait_1 total_wait longest_response n_switches".split(' ')
+        csvwriter.writerow(header)
+
+        for current_seed in range(num_random_tests):
+            create_random_test(current_seed,
+                               f"{test_output_path}/data.txt",
+                               num_customers=num_customers)
+
+            # Run scheduler.
+            sp.run([f"./{scheduler_path}",
+                    f"{test_output_path}/data.txt",
+                    f"{test_output_path}/out_scheduler.txt"])
+
+            # Get scheduler statistics
+            scheduler_res = sp.run([f"./{compute_stats_path}",
+                                    f"{test_output_path}/data.txt",
+                                    f"{test_output_path}/out_scheduler.txt"],
+                                   capture_output=True)
+
+            # Extract statistics output.
+            scheduler_res = scheduler_res.stdout.decode()
+
+            # Select the numerical output.
+            scheduler_res = scheduler_res.split('\n')[1].split(' ')
+
+            # Convert all string entries to integers
+            scheduler_res = [int(i) for i in scheduler_res]
+
+            csvwriter.writerow(scheduler_res)
+
+
 if __name__ == "__main__":
-    run_tests()
+    perform_benchmark()

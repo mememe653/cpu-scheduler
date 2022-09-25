@@ -1,9 +1,3 @@
-// a1628056 Sam Schultz
-// a1766074 Francis Arice Dela Cruz
-// a1782610 Tristan Murphy
-// a1819909 Brandon Amato
-// Dream Team
-
 // Program Imports
 #include <iostream>
 #include <fstream>
@@ -13,10 +7,13 @@
 
 // Program Constants
 // std is a namespace: https://www.cplusplus.com/doc/oldtutorial/namespaces/
-const int TIME_ALLOWANCE = 4;  // allow the arriving event to use up to this number of time slots at once for its initial run
+const int TIME_ALLOWANCE = 8;  // allow to use up to this number of time slots at once
 const int PRINT_LOG = 0; // print detailed execution trace
 const int HIGH_PRIORITY = 0;
 const int LOW_PRIORITY = 1;
+
+const int NUM_PRIORITIES = 2; // number of priorities in the mlfq
+const int TIME_ALLOWANCES[16] = {50, 50, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
 
 // Customer Class
 class Customer {
@@ -111,82 +108,96 @@ int main(int argc, char* argv[]) {
     // read information from file, initialize events queue
     initialize_system(in_file, arrival_events, customers);
     std::deque<int> arrival_queue;
-    std::deque<int> high_priority_queue;
-    std::deque<int> low_priority_queue;
-    std::deque<int>* current_queue = &arrival_queue;
+
+    std::deque<int> queues[NUM_PRIORITIES];
+    int current_queue_index = -1; // -1 means arrival_queue, otherwise it indexes queues[]
+
     int current_id = -1;
     int time_out = -1;
     bool all_done = false;
     // Loops through until all_done is true
     for (int current_time = 0; !all_done; current_time++) {
+        // add things to the arrivl queue
         while (!arrival_events.empty() && (current_time == arrival_events[0].event_time)) {
             arrival_queue.push_back(arrival_events[0].customer_id);
             arrival_events.pop_front();
         }
+
         if (current_id >= 0) {
+            // when this person has finished
             if (current_time == time_out) {
                 int last_run = current_time - customers[current_id].playing_since;
                 customers[current_id].slots_remaining -= last_run;
                 //current_queue->pop_front();
                 if (customers[current_id].slots_remaining > 0) {
-                     high_priority_queue.push_back(current_id);
+                    if (customers[current_id].priority == HIGH_PRIORITY) {
+                        queues[0].push_back(current_id);
+                    }
+                    else if (customers[current_id].priority == LOW_PRIORITY) {
+                        queues[0].push_back(current_id); // why does this work?????
+                    }
                 }
                 current_id = -1;
             }
         }
+
+        // schedule a new customer since current_id == -1
         if (current_id == -1) {
-            // Pre-empt with arrival events.
-            if (!arrival_queue.empty()) {
-                current_queue = &arrival_queue;
-            }
-            // If the current_queue is empty
-            else if (current_queue->empty()) {
-                if (current_queue == &arrival_queue) {
-                    current_queue = &high_priority_queue;
-                }
-                else if (current_queue == &high_priority_queue) {
-                    current_queue = &arrival_queue;
-                }
-                else if (current_queue == &low_priority_queue) {
-                    current_queue = &arrival_queue;
-                    if (current_queue->empty()) {
-                        current_queue = &high_priority_queue;
+            // select the nonempty queue with highest priority
+            current_queue_index = -1;
+            if (arrival_queue.empty()) {
+                for (int i = 0; i < NUM_PRIORITIES; i++) {
+                    if (!queues[i].empty()) {
+                        current_queue_index = i;
+                        break;
                     }
-                }
-                if (arrival_queue.empty() && high_priority_queue.empty()) {
-                    current_queue = &low_priority_queue;
-                    if (low_priority_queue.empty()) {
-                        current_queue = &arrival_queue;
-                    }
-                }
-                if (current_queue != &arrival_queue) {
-                    std::sort(current_queue->begin(), current_queue->end(), 
-                        [&customers](int a, int b) -> bool {
-                            return customers[a].slots_remaining < customers[b].slots_remaining;
-                        });
                 }
             }
-            // If the current_queue is NOT empty
-            if (!current_queue->empty()) {
-                current_id = current_queue->front();
-                current_queue->pop_front();
-                if (current_queue == &arrival_queue) {
-                    if (TIME_ALLOWANCE > customers[current_id].slots_remaining) {
-                        time_out = current_time + customers[current_id].slots_remaining;
-                    }
-                    else {
-                        time_out = current_time + TIME_ALLOWANCE;
-                    }
-                }
-                else {
-                    time_out = current_time + customers[current_id].slots_remaining;
-                }
+
+            if (current_queue_index != -1) {
+                std::sort(queues[current_queue_index].begin(), queues[current_queue_index].end(),
+                          [&customers](int a, int b) -> bool {
+                              return customers[a].slots_remaining < customers[b].slots_remaining;
+                          });
+            }
+
+            // for arrival queue
+            if (current_queue_index == -1 && !arrival_queue.empty()) {
+                current_id = arrival_queue.front();
+                arrival_queue.pop_front();
+
+                time_out = current_time + std::min(TIME_ALLOWANCE,
+                                                   customers[current_id].slots_remaining);
+
                 customers[current_id].playing_since = current_time;
             }
+            else if (current_queue_index >= 0) {
+                current_id = queues[current_queue_index].front();
+                queues[current_queue_index].pop_front();
+
+                time_out = current_time + std::min(TIME_ALLOWANCES[current_queue_index],
+                                                   customers[current_id].slots_remaining);
+
+                customers[current_id].playing_since = current_time;
+            }
+
         }
+
         // Runs the print_state method
-        print_state(out_file, current_time, current_id, arrival_events, *current_queue);
-        all_done = (arrival_events.empty() && arrival_queue.empty() && high_priority_queue.empty() && low_priority_queue.empty() && (current_id == -1));
+        if (current_queue_index == -1)
+            print_state(out_file, current_time, current_id, arrival_events, arrival_queue);
+        else
+            print_state(out_file, current_time, current_id, arrival_events, queues[current_queue_index]);
+
+        bool queues_is_empty = true;
+        for (int i = 0; i < NUM_PRIORITIES; i++) {
+            if (!queues[i].empty()) {
+                queues_is_empty = false;
+                break;
+            }
+        }
+
+        all_done = (arrival_events.empty() && arrival_queue.empty() && queues_is_empty && (current_id == -1));
     }
     return 0;
 }
